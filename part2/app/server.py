@@ -10,12 +10,13 @@ Listen on PORT (default 8000). The queue file is DATA_DIR/queue.txt
 port is reachable. serve() must use the host it is given.
 """
 
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import os
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 from app.queue import join, take
+
 
 def make_handler(queue_path: Path) -> type[BaseHTTPRequestHandler]:
     class QueueHandler(BaseHTTPRequestHandler):
