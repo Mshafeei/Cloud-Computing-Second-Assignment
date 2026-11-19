@@ -10,20 +10,36 @@ from pathlib import Path
 
 
 def join(path: str | Path, name: str) -> int:
-    """Append one person and return the ticket number.
+    """Append one person and return the ticket number."""
+    if "\n" in name or "\r" in name:
+        raise ValueError("Name must not contain a newline")
+    cleaned = name.strip()
+    if not cleaned or len(cleaned) > 40:
+        raise ValueError("Name must be between 1 and 40 characters")
 
-    The ticket number is how many names are in the file after this join.
-    Strip spaces around the name before storing it.
-    Raise ValueError, and do not create or change the file, when the
-    stripped name is empty, longer than 40 characters, or the original
-    name contains a newline.
-    """
-    raise NotImplementedError("TODO: append a line and return the ticket number")
+    p = Path(path)
+    p.parent.mkdir(parents=True, exist_ok=True)
+
+    existing = []
+    if p.exists():
+        existing = [line for line in p.read_text(encoding="utf-8").splitlines() if line]
+
+    with p.open("a", encoding="utf-8") as f:
+        f.write(f"{cleaned}\n")
+
+    return len(existing) + 1
 
 
 def take(path: str | Path) -> str:
-    """Remove and return the first name.
+    """Remove and return the first name."""
+    p = Path(path)
+    if not p.exists():
+        raise LookupError("Queue file does not exist")
 
-    Raise LookupError when the file is missing or has no names.
-    """
-    raise NotImplementedError("TODO: remove the first line and return that name")
+    lines = [line for line in p.read_text(encoding="utf-8").splitlines() if line]
+    if not lines:
+        raise LookupError("Queue is empty")
+
+    first, rest = lines[0], lines[1:]
+    p.write_text("".join(f"{line}\n" for line in rest), encoding="utf-8")
+    return first

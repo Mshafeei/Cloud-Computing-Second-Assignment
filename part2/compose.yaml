@@ -1,0 +1,13 @@
+services:
+  app:
+    build: .
+    ports:
+      - "${APP_PORT}:8000"
+    environment:
+      PORT: "8000"
+      DATA_DIR: "./data"
+    volumes:
+      - queue-data:/app/data
+
+volumes:
+  queue-data:
