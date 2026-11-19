@@ -1,11 +1,6 @@
-"""Queue stored as one name per line.
-
-The HTTP server must call these functions. Tests call them directly,
-with a temporary directory, and do not start Docker.
-"""
-
-from __future__ import annotations
-
+import fcntl
+import os
+import tempfile
 from pathlib import Path
 
 
@@ -19,27 +14,57 @@ def join(path: str | Path, name: str) -> int:
 
     p = Path(path)
     p.parent.mkdir(parents=True, exist_ok=True)
+    lock_path = p.parent / "queue.lock"
 
-    existing = []
-    if p.exists():
-        existing = [line for line in p.read_text(encoding="utf-8").splitlines() if line]
+    with open(lock_path, "a+", encoding="utf-8") as lock_file:
+        fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
+        try:
+            existing = []
+            if p.exists():
+                existing = [
+                    line for line in p.read_text(encoding="utf-8").splitlines() if line
+                ]
 
-    with p.open("a", encoding="utf-8") as f:
-        f.write(f"{cleaned}\n")
+            with p.open("a", encoding="utf-8") as f:
+                f.write(f"{cleaned}\n")
 
-    return len(existing) + 1
+            return len(existing) + 1
+        finally:
+            fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
 
 
 def take(path: str | Path) -> str:
     """Remove and return the first name."""
     p = Path(path)
-    if not p.exists():
+    if not p.parent.exists():
         raise LookupError("Queue file does not exist")
 
-    lines = [line for line in p.read_text(encoding="utf-8").splitlines() if line]
-    if not lines:
-        raise LookupError("Queue is empty")
+    lock_path = p.parent / "queue.lock"
 
-    first, rest = lines[0], lines[1:]
-    p.write_text("".join(f"{line}\n" for line in rest), encoding="utf-8")
-    return first
+    with open(lock_path, "a+", encoding="utf-8") as lock_file:
+        fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
+        try:
+            if not p.exists():
+                raise LookupError("Queue file does not exist")
+
+            lines = [
+                line for line in p.read_text(encoding="utf-8").splitlines() if line
+            ]
+            if not lines:
+                raise LookupError("Queue is empty")
+
+            first, rest = lines[0], lines[1:]
+
+            tmp_fd, tmp_name = tempfile.mkstemp(dir=p.parent, text=True)
+            try:
+                with os.fdopen(tmp_fd, "w", encoding="utf-8") as tmp_file:
+                    tmp_file.writelines(f"{line}\n" for line in rest)
+                os.replace(tmp_name, p)
+            except Exception:
+                if os.path.exists(tmp_name):
+                    os.unlink(tmp_name)
+                raise
+
+            return first
+        finally:
+            fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
