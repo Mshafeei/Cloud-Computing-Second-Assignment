@@ -17,6 +17,7 @@ from pathlib import Path
 
 from app.queue import join, take
 
+
 def make_handler(queue_path: Path) -> type[BaseHTTPRequestHandler]:
     class QueueHandler(BaseHTTPRequestHandler):
         def _send_text(self, status: int, body: str) -> None:
